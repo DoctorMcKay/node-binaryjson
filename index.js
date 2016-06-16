@@ -46,7 +46,7 @@ exports.decode = function(input) {
 
 		var currentKeyName;
 		if (named) {
-			currentKeyName = buffer.readVString();
+			currentKeyName = readValue()[1];
 		}
 
 		switch (type) {
@@ -219,19 +219,19 @@ exports.encode = function(input) {
 		return buffer;
 	}
 
+	function writeString(string) {
+		writeType(DataType.String, null, string).writeVString(string);
+	}
+
 	function writeType(type, name, value) {
 		var size = (type == DataType.String ? ByteBuffer.calculateVarint64(value.length) + value.length : 32);
-		if (name) {
-			size += ByteBuffer.calculateVarint64(name.length) + name.length;
-		}
-
 		if (buffer.remaining() < size) {
 			buffer.resize(buffer.limit + Math.max(size, 128));
 		}
 
 		buffer.writeUint8(type);
 		if (name) {
-			buffer.writeVString(name);
+			writeString(name);
 		}
 
 		return buffer;
