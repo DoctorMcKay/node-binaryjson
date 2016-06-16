@@ -39,7 +39,7 @@ exports.decode = function(input) {
 	function readValue(named) {
 		var type = buffer.readUint8();
 		var data, val;
-		var negative = type % 2 == 1 ? -1 : 1; // all our negative types are odd
+		var negative = type % 2 == 1 ? 1 : -1; // all our negative types are even
 
 		if (type == DataType.End) {
 			return undefined; // special value to represent End; JSON can't encode undefined so this isn't a real value
@@ -185,6 +185,33 @@ exports.encode = function(input) {
 					writeType(type, name);
 					func.call(buffer, value);
 				}
+
+				break;
+			
+			case 'object':
+				// Here's the monster
+				if (value === null) {
+					writeType(DataType.Null, name);
+					break;
+				}
+
+				if (value instanceof Array) {
+					writeType(DataType.Array, name);
+					value.forEach(function(i) {
+						writeValue(i);
+					});
+
+					writeType(DataType.End);
+					break;
+				}
+
+				writeType(DataType.Object, name);
+				for (var i in value) {
+					if (value.hasOwnProperty(i)) {
+						writeValue(value[i], i);
+					}
+				}
+				writeType(DataType.End);
 
 				break;
 		}
