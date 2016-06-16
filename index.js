@@ -33,8 +33,7 @@ var DataType = {
 
 exports.decode = function(input) {
 	var buffer = ByteBuffer.wrap(input, "binary", false);
-	var currentKeyName;
-	return readValue();
+	return readValue()[1];
 
 	function readValue(named) {
 		var type = buffer.readUint8();
@@ -45,6 +44,7 @@ exports.decode = function(input) {
 			return undefined; // special value to represent End; JSON can't encode undefined so this isn't a real value
 		}
 
+		var currentKeyName;
 		if (named) {
 			currentKeyName = buffer.readVString();
 		}
@@ -53,7 +53,7 @@ exports.decode = function(input) {
 			case DataType.Object:
 				data = {};
 				while ((val = readValue(true)) !== undefined) {
-					data[currentKeyName] = val;
+					data[val[0]] = val[1];
 				}
 
 				break;
@@ -61,7 +61,7 @@ exports.decode = function(input) {
 			case DataType.Array:
 				data = [];
 				while ((val = readValue()) !== undefined) {
-					data.push(val);
+					data.push(val[1]);
 				}
 
 				break;
@@ -121,7 +121,7 @@ exports.decode = function(input) {
 				break;
 		}
 
-		return data;
+		return [currentKeyName, data];
 	}
 };
 
