@@ -26,7 +26,7 @@ var DataType = {
 	"NegativeInt16": 0x0C,
 	"PositiveInt32": 0x0D,
 	"NegativeInt32": 0x0E,
-	"PositiveInt64": 0x0F, // Use Int64 if abs(x) >= 36028797018963970 (approximately). Use varint64 if 4294967296 <= abs(x) < 36028797018963970
+	"PositiveInt64": 0x0F,
 	"NegativeInt64": 0x10,
 	"Double": 0x11
 };
