@@ -1,0 +1,18 @@
+{
+	"name": "binaryjson",
+	"version": "1.0.0",
+	"description": "Not to be confused with mongodb's BSON, this provides an efficient way to encode JSON for transport and storage",
+	"keywords": ["json", "binary", "encoding"],
+	"homepage": "https://github.com/DoctorMcKay/node-binaryjson",
+	"bugs": {
+		"url": "https://github.com/DoctorMcKay/node-binaryjson/issues"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/DoctorMcKay/node-binaryjson.git"
+	},
+	"dependencies": {
+		"bytebuffer": "^5.0.0"
+	}
+}
