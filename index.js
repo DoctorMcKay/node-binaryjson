@@ -6,9 +6,9 @@ if (typeof dcodeIO !== 'undefined') {
 	ByteBuffer = require('bytebuffer');
 }
 
-const MAX_UINT8 = 255;
-const MAX_UINT16 = 65535;
-const MAX_UINT32 = 4294967295;
+var MAX_UINT8 = 255;
+var MAX_UINT16 = 65535;
+var MAX_UINT32 = 4294967295;
 
 var DataType = {
 	"End": 0x00, // end of an object or array
