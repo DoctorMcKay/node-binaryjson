@@ -28,11 +28,20 @@ var DataType = {
 	"NegativeInt32": 0x0E,
 	"PositiveInt64": 0x0F,
 	"NegativeInt64": 0x10,
-	"Double": 0x11
+	"Double": 0x11,
+	"Dictionary": 0x12, // Identical to an array. For internal usage. Stores reused strings.
+	"DictionaryEntry": 0x13 // For internal usage. Points to a dictionary entry.
 };
 
 exports.decode = function(input) {
 	var buffer = ByteBuffer.wrap(input, "binary", false);
+	if (buffer.readUint8() == DataType.Dictionary) {
+		--buffer.offset;
+		var dictionary = readValue()[1];
+	} else {
+		--buffer.offset;
+	}
+
 	return readValue()[1];
 
 	function readValue(named) {
@@ -59,6 +68,7 @@ exports.decode = function(input) {
 				break;
 
 			case DataType.Array:
+			case DataType.Dictionary:
 				data = [];
 				while ((val = readValue()) !== undefined) {
 					data.push(val[1]);
@@ -119,6 +129,15 @@ exports.decode = function(input) {
 			case DataType.Double:
 				data = buffer.readDouble();
 				break;
+
+			case DataType.DictionaryEntry:
+				if (!dictionary) {
+					throw new Error("Tried to read dictionary entry without a provided dictionary");
+				}
+
+				var entry = buffer.readVarint64();
+				data = dictionary[entry];
+				break;
 		}
 
 		return [currentKeyName, data];
@@ -127,10 +146,51 @@ exports.decode = function(input) {
 
 exports.encode = function(input) {
 	var buffer = new ByteBuffer(128, false);
+	var dictionary = {};
+	// Analyze our input for strings
+	analyze(input);
+
+	// We only care about items that appear more than once
+	var counter = 0, match;
+	for (var i in dictionary) {
+		if (!dictionary.hasOwnProperty(i)) {
+			continue;
+		}
+
+		if (dictionary[i] <= 1) {
+			delete dictionary[i];
+		} else {
+			if (counter == 0) {
+				// Go ahead and start the dictionary item
+				writeType(DataType.Dictionary);
+			}
+
+			match = i.match(/^([^_]+)+_(.*)$/);
+			switch (match[1]) {
+				case 'str':
+					writeType(DataType.String, null, match[2]).writeVString(match[2]);
+					break;
+
+				case 'dbl':
+					writeType(DataType.Double).writeDouble(parseFloat(match[2]));
+					break;
+			}
+
+			dictionary[i] = counter++; // overwrite the dictionary object entry with the index of this entry
+		}
+	}
+
+	if (counter > 0) {
+		// Close the dictionary
+		writeType(DataType.End);
+	}
+
 	return writeValue(input).flip().toBuffer();
 
 	function writeValue(value, name) {
 		var jsType = typeof value;
+
+		// Turn string numbers into numbers
 		if (typeof value === 'string' && value.match(/^-?[0-9]+$/)) {
 			jsType = 'number';
 			if (value <= MAX_UINT32) {
@@ -144,17 +204,17 @@ exports.encode = function(input) {
 				break;
 
 			case 'string':
-				writeType(DataType.String, name, value).writeVString(value);
+				writeString(value, name);
 				break;
 
 			case 'number':
 				if (isNaN(value)) {
-					throw new Error("Cannot encode NaN into binary JSON.");
+					throw new TypeError("Cannot encode NaN into binary JSON.");
 				}
 
 				if (value % 1) {
 					// This is a double
-					writeType(DataType.Double, name).writeDouble(value);
+					writeDouble(value, name);
 				} else {
 					// This is an int. Figure out the most efficient encoding type.
 					var isNegative = value < 0;
@@ -219,8 +279,44 @@ exports.encode = function(input) {
 		return buffer;
 	}
 
-	function writeString(string) {
-		writeType(DataType.String, null, string).writeVString(string);
+	function writeString(string, name) {
+		if (dictionary.hasOwnProperty('str_' + string)) {
+			writeType(DataType.DictionaryEntry);
+
+			if (name) {
+				writeString(name);
+			}
+
+			buffer.writeVarint64(dictionary['str_' + string]);
+		} else {
+			writeType(DataType.String, null, string);
+
+			if (name) {
+				writeString(name);
+			}
+
+			buffer.writeVString(string);
+		}
+	}
+
+	function writeDouble(double, name) {
+		if (dictionary.hasOwnProperty('dbl_' + double)) {
+			writeType(DataType.DictionaryEntry);
+
+			if (name) {
+				writeString(name);
+			}
+
+			buffer.writeVarint64(dictionary['dbl_' + double]);
+		} else {
+			writeType(DataType.Double);
+
+			if (name) {
+				writeString(name);
+			}
+
+			buffer.writeDouble(double);
+		}
 	}
 
 	function writeType(type, name, value) {
@@ -235,5 +331,28 @@ exports.encode = function(input) {
 		}
 
 		return buffer;
+	}
+
+	function analyze(value) {
+		if (typeof value === 'string' && value.length > 0) { // no savings on empty strings
+			incrementDictionary('str', value);
+		} else if (value instanceof Array) {
+			value.forEach(analyze);
+		} else if (typeof value === 'object' && value !== null) {
+			for (var i in value) {
+				if (value.hasOwnProperty(i)) {
+					analyze(i);
+					analyze(value[i]);
+				}
+			}
+		} else if (typeof value === 'number' && value % 1 != 0) {
+			// this is a double
+			incrementDictionary('dbl', value);
+		}
+	}
+
+	function incrementDictionary(type, value) {
+		dictionary[type + '_' + value] = dictionary[type + '_' + value] || 0;
+		++dictionary[type + '_' + value];
 	}
 };
